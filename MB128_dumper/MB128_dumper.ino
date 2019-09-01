@@ -47,6 +47,18 @@ const int d1_inPin = 6;       // data 1 pin from MB128
 const int d0_datainPin = 5;   // data 0 - data pin from MB128 (d0)
 
 const int chipSelect = 4;
+
+const int sw_BackupPin = 19;
+const int sw_RestorePin = 0;
+const int sw_TestPin = 1;
+
+const int led_GreenOK = 8;
+const int led_RedSDErr = 14;
+const int led_RedMB128Err = 15;
+const int led_GreenRead = 16;
+const int led_YellowWrite = 17;
+const int led_BlueTestOK = 18;
+
 #endif
 
 
@@ -446,6 +458,8 @@ void mb128_rdwr_sector_num(bool rdwr, char sector_num)
   mb128_send_bit(false);  // 0
   mb128_send_byte(sector_num);  // sector number
 
+//TODO: Fix this section to explain write of length properly
+//
   logFile.println("Read-write length");
   mb128_send_byte(0x00);  // 0x00
   mb128_send_byte(0x10);  // 0x10
@@ -465,6 +479,9 @@ char disp_char;
 char curr_sector = start_sector;
 char char_buf[16];
 
+//TODO: Fix situation where multiple sectors are read; the trailing bits
+//      shouldn't be part of each sector
+//
   while (num_sectors > 0) {
     if (!mb128_detect())
       return(false);
@@ -472,6 +489,8 @@ char char_buf[16];
     logFile.print("Read sector 0x");
     logFile.print(((curr_sector >> 4)& 0x0f), HEX);
     logFile.println((curr_sector & 0x0f), HEX);
+
+    digitalWrite(led_GreenRead, HIGH);
 
     mb128_rdwr_sector_num(MB128_READ_SECTOR, curr_sector);
     Serial.print("Sector #");
@@ -508,6 +527,8 @@ char char_buf[16];
     curr_sector++;
     num_sectors--;
 
+    digitalWrite(led_GreenRead, LOW);
+
     logFile.println("Sector read trailing bits");
     mb128_send_bit(false);  // 0
     mb128_send_bit(false);  // 0
@@ -532,6 +553,8 @@ bool temp;
     return(false);
   }
 
+  digitalWrite(led_YellowWrite, HIGH);
+
   while (num_sectors > 0) {
     if (!mb128_detect())
       return(false);
@@ -544,6 +567,11 @@ bool temp;
     Serial.print("Sector #");
     Serial.print(((curr_sector >> 4) & 0x0f), HEX);
     Serial.println((curr_sector & 0x0f), HEX);
+
+
+//TODO: Fix situation where multiple sectors are written; the trailing bits
+//      shouldn't be part of each sector
+//
 
     for (i = 0; i < 512; i+=16 ) {
 //      Serial.print(((i >> 8) & 0x0f), HEX);
@@ -573,6 +601,8 @@ bool temp;
 //    Serial.println("");
     curr_sector++;
     num_sectors--;
+
+    digitalWrite(led_YellowWrite, LOW);
 
     logFile.println("Write transaction trailing bits");
     temp = mb128_read_bit();
@@ -640,6 +670,67 @@ void write_to_mb128()
   dataFile.close();
 }
 
+void flourish()
+{
+  digitalWrite(clockPin, HIGH);
+  digitalWrite(led_GreenOK, HIGH);
+  digitalWrite(led_RedSDErr, HIGH);
+  digitalWrite(led_RedMB128Err, HIGH);
+  digitalWrite(led_GreenRead, HIGH);
+  digitalWrite(led_YellowWrite, HIGH);
+  digitalWrite(led_BlueTestOK, HIGH);
+  delay(700);
+
+  digitalWrite(clockPin, LOW);
+  digitalWrite(led_GreenOK, LOW);
+  digitalWrite(led_RedSDErr, LOW);
+  digitalWrite(led_RedMB128Err, LOW);
+  digitalWrite(led_GreenRead, LOW);
+  digitalWrite(led_YellowWrite, LOW);
+  digitalWrite(led_BlueTestOK, LOW);
+  delay(200);
+
+  digitalWrite(led_BlueTestOK, HIGH);
+  delay(200);
+  digitalWrite(led_BlueTestOK, LOW);
+
+  digitalWrite(led_YellowWrite, HIGH);
+  delay(200);
+  digitalWrite(led_YellowWrite, LOW);
+
+  digitalWrite(led_GreenRead, HIGH);
+  delay(200);
+  digitalWrite(led_GreenRead, LOW);
+
+  digitalWrite(led_RedMB128Err, HIGH);
+  delay(200);
+  digitalWrite(led_RedMB128Err, LOW);
+
+  digitalWrite(led_RedSDErr, HIGH);
+  delay(200);
+  digitalWrite(led_RedSDErr, LOW);
+
+  digitalWrite(led_GreenOK, HIGH);
+}
+
+void flash_error(int led)
+{
+  digitalWrite(led_GreenOK, LOW);
+  
+  while (1) {
+    digitalWrite(led, HIGH);
+    delay(200);
+    digitalWrite(led, LOW);
+    delay(200);
+  }
+}
+
+
+//void find_file()
+//{
+//
+//}
+
 void setup()
 {
 int q;
@@ -654,6 +745,20 @@ int q;
   pinMode(d2_identPin, INPUT);
   pinMode(d3_inPin, INPUT);
 
+  pinMode(sw_BackupPin, INPUT_PULLUP);
+  pinMode(sw_RestorePin, INPUT_PULLUP);
+  pinMode(sw_TestPin, INPUT_PULLUP);
+
+  pinMode(led_GreenOK, OUTPUT);
+  pinMode(led_RedSDErr, OUTPUT);
+  pinMode(led_RedMB128Err, OUTPUT);
+  pinMode(led_GreenRead, OUTPUT);
+  pinMode(led_YellowWrite, OUTPUT);
+  pinMode(led_BlueTestOK, OUTPUT);
+
+  delay(3000);  // wait for startup period
+  flourish();
+
   Serial.print("Initializing SD card...");
 
   // see if the card is present and can be initialized:
@@ -661,16 +766,19 @@ int q;
     Serial.println("Card failed, or not present");
     // don't do anything more:
     cardPresent = false;
+   
+    flash_error(led_RedSDErr);
   }
   else {
     cardPresent = true;
     Serial.println("card initialized.");
   }
 
-  Serial.println("Starting - delay");
-  
-  delay(5000);  // wait for startup period
+//  Serial.println("Starting - delay");
 
+//TODO - detect "last" file number mb128_##.sav
+//TODO - detect mb128.dbg for debug information
+//
   if (cardPresent) {
     if (SD.exists("mb128.sav")) {
       Serial.println("mb128.sav exists.");
@@ -697,6 +805,9 @@ int q;
     Serial.println("booted");
   else {
     Serial.println("boot failure");
+    
+    flash_error(led_RedMB128Err);
+
     if (cardPresent)
       dataFile.close();
       logFile.close();
@@ -726,6 +837,41 @@ int q;
 }
 
 void loop() {
+  int rdval;
+
+  if (digitalRead(sw_BackupPin) == LOW) {
+    Serial.println("Backup");
+    digitalWrite(led_GreenOK, LOW);
+    digitalWrite(led_BlueTestOK, LOW);
+    delay(1000);
+    
+    // if restore() == OK
+    digitalWrite(led_GreenOK, HIGH);
+    delay(1000);
+  }
+
+  if (digitalRead(sw_RestorePin) == LOW) {
+    Serial.println("Restore");
+    digitalWrite(led_GreenOK, LOW);
+    digitalWrite(led_BlueTestOK, LOW);
+    delay(1000);
+
+    // if restore() == OK
+    digitalWrite(led_GreenOK, HIGH);
+    delay(1000);
+  }
+
+  if (digitalRead(sw_TestPin) == LOW) {
+    Serial.println("Test");
+    digitalWrite(led_GreenOK, LOW);
+    delay(1000);
+
+    // if test() == OK
+    digitalWrite(led_GreenOK, HIGH);
+    digitalWrite(led_BlueTestOK, HIGH);
+    delay(1000);
+  }
+
   if (Serial.available()) {
     inChar = Serial.read();
     if (inChar == 'W') {
