@@ -1,13 +1,12 @@
-# MB128-Control-Soft
-Arduino Sketch for PC Board to Control (Backup, Restore, Test) PC Engine Memory Base 128 devices
+# MB128-Tester
+This project contains both a PC board to control (Backup, Restore, Test) PC Engine
+Memory Base 128 devices, as well as the control software for that PC board.
 
-I built a PC board, based on an 'Adafruit Feather M0 Adalogger' microcontroller board, which
+The PC board is based on an 'Adafruit Feather M0 Adalogger' microcontroller board, which
 directly interfaces to PC Engine Memory Base 128 devices.
 
-Information on that board can be found here:
 
-
-This repository holds the software which runs on that board.
+This repository holds the software which runs on that board, as well as the board's design files.
 
 The sketch was built within the Arduino IDE, but I found that the digitalWrite() and digitalRead()
 functions were too slow: ~1uS per call, when I needed 3 to 4 times that speed.
