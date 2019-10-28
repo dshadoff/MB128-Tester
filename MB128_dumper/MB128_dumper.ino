@@ -10,6 +10,8 @@
 // hardware.
 //
 
+#define VERSION_NUMBER    20191027
+
 // ------------------------
 // *** HARDWARE defines ***
 // ------------------------
@@ -45,7 +47,7 @@
 //
 const bool delayMilli = false;  // if true, delay in milliseconds
 const int delayShort  = 2;      // 2uS on real system
-const int delayLong   = 4;      // 4uS on real system
+const int delayLong   = 3;      // 4uS on real system
 
 
 
@@ -80,6 +82,8 @@ const int led_BlueTestOK  = 18;
 
 #endif
 
+const int version_num = VERSION_NUMBER;
+
 
 
 char inChar;
@@ -88,6 +92,10 @@ boolean dataFilePresent;
 
 unsigned long time_s;
 unsigned long time_e;
+
+char buffer_aa[513];
+char buffer_55[513];
+char buffer_mem[513];
 
 char tempfname[16];
 char lastfname[16];
@@ -507,11 +515,11 @@ bool temp;
 
   temp = mb128_read_bit();
 
-  Serial.print("boot readbit = ");
-  if (temp)
-    Serial.println("1");
-  else
-    Serial.println("0");
+//  Serial.print("boot readbit = ");
+//  if (temp)
+//    Serial.println("1");
+//  else
+//    Serial.println("0");
   
   if (debug_on) {
     logFile.println("Boot trail 3 bits");
@@ -606,6 +614,65 @@ void mb128_rdwr_addr_len(bool rdwr, int start_addr, long bytes, char bits)
   logFile.println("");
 }
 
+void mb128_read_to_buffer_512(char * bufptr)
+{
+int i, j;
+char read_byte;
+char disp_char;
+char char_buf[16];
+
+   for (i = 0; i < 512; i+=16 ) {
+//     Serial.print(((i >> 8) & 0x0f), HEX);
+//     Serial.print(((i >> 4) & 0x0f), HEX);
+//     Serial.print((i & 0x0f), HEX);
+//     Serial.print(": ");
+     for (j = 0; j < 16; j++) {
+       read_byte = mb128_read_byte();
+
+       // put it into the return buffer
+       *(bufptr) = read_byte;
+       bufptr++;
+       
+       if ((read_byte < 0x20) || (read_byte > 0x7f))
+         disp_char = '.';
+       else
+         disp_char = read_byte;
+          
+       char_buf[j] = disp_char;
+
+//       Serial.print(((read_byte >> 4) & 0x0f), HEX);
+//       Serial.print((read_byte & 0x0f), HEX);
+//       Serial.print(" ");
+     }
+     for (j = 0; j < 16; j++) {
+//       Serial.print(char_buf[j]);        
+     }
+//     Serial.println("");
+   }
+}
+
+bool mb128_read_sector(char sector, char *bufptr)
+{
+   if (!mb128_detect())
+     return(false);
+
+   digitalWrite(led_GreenOK, LOW);
+   digitalWrite(led_GreenRead, HIGH);
+
+   mb128_rdwr_sector_num(MB128_READ_SECTOR, sector);
+   mb128_read_to_buffer_512(bufptr);
+
+   digitalWrite(led_GreenRead, LOW);
+   digitalWrite(led_GreenOK, HIGH);
+
+// trailing bits (3 bits for reads)
+   mb128_send_bit(false);  // 0
+   mb128_send_bit(false);  // 0
+   mb128_send_bit(false);  // 0
+   
+   return(true);
+}
+
 bool mb128_read_sectors(char start_sector, int num_sectors)
 {
 int i, j;
@@ -613,68 +680,114 @@ char read_byte;
 char disp_char;
 char curr_sector = start_sector;
 char char_buf[16];
+char read_buf[512];
 
-//NOTE: Where multiple sectors are read, the trailing bits are used
-//      because each sector is requsted one-by-one
+//NOTE: Where multiple sectors are read, each sector is requsted one-by-one
+//      rather than using a single large read
 //
   while (num_sectors > 0) {
-    if (!mb128_detect())
-      return(false);
 
     logFile.print("Read sector 0x");
     logFile.print(((curr_sector >> 4)& 0x0f), HEX);
     logFile.println((curr_sector & 0x0f), HEX);
 
-    digitalWrite(led_GreenOK, LOW);
-    digitalWrite(led_GreenRead, HIGH);
-
-    mb128_rdwr_sector_num(MB128_READ_SECTOR, curr_sector);
     Serial.print("Sector #");
     Serial.print(((curr_sector >> 4) & 0x0f), HEX);
     Serial.println((curr_sector & 0x0f), HEX);
 
-    for (i = 0; i < 512; i+=16 ) {
-//      Serial.print(((i >> 8) & 0x0f), HEX);
-//      Serial.print(((i >> 4) & 0x0f), HEX);
-//      Serial.print((i & 0x0f), HEX);
-//      Serial.print(": ");
-      for (j = 0; j < 16; j++) {
-        read_byte = mb128_read_byte();
-        if (cardPresent)
-          dataFile.write(read_byte);
+    if (!mb128_read_sector(curr_sector, read_buf))
+      return(false);
 
-        if ((read_byte < 0x20) || (read_byte > 0x7f))
-          disp_char = '.';
-        else
-          disp_char = read_byte;
-          
-        char_buf[j] = disp_char;
+    if (cardPresent)
+      dataFile.write(read_buf, 512);
 
-//        Serial.print(((read_byte >> 4) & 0x0f), HEX);
-//        Serial.print((read_byte & 0x0f), HEX);
-//        Serial.print(" ");
-      }
-      for (j = 0; j < 16; j++) {
-//        Serial.print(char_buf[j]);        
-      }
-//      Serial.println("");
-    }
-//    Serial.println("");
     curr_sector++;
     num_sectors--;
-
-    digitalWrite(led_GreenRead, LOW);
-    digitalWrite(led_GreenOK, HIGH);
-
-    logFile.println("Sector read trailing bits");
-    mb128_send_bit(false);  // 0
-    mb128_send_bit(false);  // 0
-    mb128_send_bit(false);  // 0
-    logFile.println("");
     delay(1);
   }
 
   return(true);
+}
+
+void mb128_write_from_buffer_512(char * bufptr)
+{
+int i, j;
+char read_byte;
+char disp_char;
+char char_buf[16];
+
+   for (i = 0; i < 512; i+=16 ) {
+//     Serial.print(((i >> 8) & 0x0f), HEX);
+//     Serial.print(((i >> 4) & 0x0f), HEX);
+//     Serial.print((i & 0x0f), HEX);
+//     Serial.print(": ");
+
+     for (j = 0; j < 16; j++) {
+       read_byte = *(bufptr);
+       mb128_send_byte(read_byte);
+       bufptr++;
+
+       if ((read_byte < 0x20) || (read_byte > 0x7f))
+         disp_char = '.';
+       else
+         disp_char = read_byte;
+         
+       char_buf[j] = disp_char;
+
+//       Serial.print(((read_byte >> 4) & 0x0f), HEX);
+//       Serial.print((read_byte & 0x0f), HEX);
+//       Serial.print(" ");
+     }
+     for (j = 0; j < 16; j++) {
+//       Serial.print(char_buf[j]);        
+     }
+//     Serial.println("");
+   }
+}
+
+bool mb128_write_sector(char sector, char *bufptr)
+{
+bool temp1, temp2;
+int sector_num;
+
+   if (!mb128_detect())
+     return(false);
+
+   digitalWrite(led_GreenOK, LOW);
+   digitalWrite(led_YellowWrite, HIGH);
+
+   mb128_rdwr_sector_num(MB128_WRITE_SECTOR, sector);
+   mb128_write_from_buffer_512(bufptr);
+
+   digitalWrite(led_YellowWrite, LOW);
+   digitalWrite(led_GreenOK, HIGH);
+
+// trailing bits (3 + 2 bits for writes):
+
+   temp1 = mb128_read_bit();
+   temp2 = mb128_read_bit();
+
+   mb128_send_bit(false);  // 0
+   mb128_send_bit(false);  // 0
+   mb128_send_bit(false);  // 0
+
+   if (!temp1) {
+     logFile.print("Read sector 0x");
+     sector_num = sector;
+     logFile.print(sector_num);
+     logFile.println(", sector write operation, post-sector bit#1 != 1... Fail"); 
+     return(false);
+   }
+
+   if (temp2) {
+     logFile.print("Read sector 0x");
+     sector_num = sector;
+     logFile.print(sector_num);
+     logFile.println(", sector write operation, post-sector bit#2 != 0... Fail"); 
+     return(false);
+   }
+
+   return(true);
 }
 
 bool mb128_write_sectors(char start_sector, int num_sectors)
@@ -683,6 +796,7 @@ int i, j;
 char read_byte;
 char disp_char;
 char curr_sector = start_sector;
+char write_buf[512];
 char char_buf[16];
 bool temp;
 
@@ -691,80 +805,23 @@ bool temp;
 //    return(false);
 //  }
 
-
   while (num_sectors > 0) {
-    if (!mb128_detect())
-      return(false);
+
+    dataFile.readBytes(write_buf, 512);
 
     logFile.print("Write sector 0x");
     logFile.print(((curr_sector >> 4)& 0x0f), HEX);
     logFile.println((curr_sector & 0x0f), HEX);
 
-    digitalWrite(led_GreenOK, LOW);
-    digitalWrite(led_YellowWrite, HIGH);
-
-    mb128_rdwr_sector_num(MB128_WRITE_SECTOR, curr_sector);
     Serial.print("Sector #");
     Serial.print(((curr_sector >> 4) & 0x0f), HEX);
     Serial.println((curr_sector & 0x0f), HEX);
 
+    if (!mb128_write_sector(curr_sector, write_buf))
+      return(false);
 
-//TODO: Fix situation where multiple sectors are written; the trailing bits
-//      shouldn't be part of each sector
-//
-
-    for (i = 0; i < 512; i+=16 ) {
-//      Serial.print(((i >> 8) & 0x0f), HEX);
-//      Serial.print(((i >> 4) & 0x0f), HEX);
-//      Serial.print((i & 0x0f), HEX);
-//      Serial.print(": ");
-      for (j = 0; j < 16; j++) {
-        read_byte = dataFile.read();
-        mb128_send_byte(read_byte);
-
-        if ((read_byte < 0x20) || (read_byte > 0x7f))
-          disp_char = '.';
-        else
-          disp_char = read_byte;
-          
-        char_buf[j] = disp_char;
-
-//        Serial.print(((read_byte >> 4) & 0x0f), HEX);
-//        Serial.print((read_byte & 0x0f), HEX);
-//        Serial.print(" ");
-      }
-      for (j = 0; j < 16; j++) {
-//        Serial.print(char_buf[j]);        
-      }
-//      Serial.println("");
-    }
-//    Serial.println("");
     curr_sector++;
     num_sectors--;
-
-    digitalWrite(led_YellowWrite, LOW);
-    digitalWrite(led_GreenOK, HIGH);
-
-
-    logFile.println("Write transaction trailing bits");
-    temp = mb128_read_bit();
-    Serial.print("write_sector readbit #1 = ");
-    if (temp)
-      Serial.println("1");
-    else
-      Serial.println("0");
-
-    temp = mb128_read_bit();
-    Serial.print("write_sector readbit #2 = ");
-    if (temp)
-      Serial.println("1");
-    else
-      Serial.println("0");
-
-    mb128_send_bit(false);  // 0
-    mb128_send_bit(false);  // 0
-    mb128_send_bit(false);  // 0
-    logFile.println("");
     delay(1);
   }
 
@@ -822,7 +879,7 @@ void flourish()
   digitalWrite(led_GreenRead, HIGH);
   digitalWrite(led_YellowWrite, HIGH);
   digitalWrite(led_BlueTestOK, HIGH);
-  delay(700);
+  delay(600);
 
   digitalWrite(clockPin, LOW);
   digitalWrite(led_GreenOK, LOW);
@@ -831,31 +888,36 @@ void flourish()
   digitalWrite(led_GreenRead, LOW);
   digitalWrite(led_YellowWrite, LOW);
   digitalWrite(led_BlueTestOK, LOW);
-  delay(200);
+  delay(180);
 
   digitalWrite(led_BlueTestOK, HIGH);
-  delay(200);
+  delay(180);
   digitalWrite(led_BlueTestOK, LOW);
 
   digitalWrite(led_YellowWrite, HIGH);
-  delay(200);
+  delay(180);
   digitalWrite(led_YellowWrite, LOW);
 
   digitalWrite(led_GreenRead, HIGH);
-  delay(200);
+  delay(180);
   digitalWrite(led_GreenRead, LOW);
 
   digitalWrite(led_RedMB128Err, HIGH);
-  delay(200);
+  delay(180);
   digitalWrite(led_RedMB128Err, LOW);
 
   digitalWrite(led_RedSDErr, HIGH);
-  delay(200);
+  delay(180);
   digitalWrite(led_RedSDErr, LOW);
+
+  delay(200);
 
   digitalWrite(led_GreenOK, HIGH);
 }
 
+// flash_error is a terminal state - it blinks forever
+//             (until reset is pressed)
+//
 void flash_error(int led)
 {
   digitalWrite(led_GreenOK, LOW);
@@ -974,9 +1036,16 @@ void find_filename()
 
 void setup()
 {
+int i;
 int q;
 
   Serial.begin(19200);
+
+  for (i = 0; i < 512; i++)
+  {
+    buffer_aa[i] = 0xaa;
+    buffer_55[i] = 0x55;
+  }
 
   // initialize I/O pins:
   //
@@ -1001,7 +1070,7 @@ int q;
   // wait for startup, then flash LEDs
   // to indicate boot in progress
   //
-  delay(3000);  // wait for startup period
+  delay(4000);  // wait for startup period
   flourish();
 
   // initialize SDCard filenames
@@ -1034,7 +1103,10 @@ int q;
 //
 
   find_filename();
-  debug_on = true;
+  
+// ******  debug_on = true;   ******
+
+
   Serial.println();
   
   if (cardPresent) {
@@ -1087,6 +1159,13 @@ int q;
   Serial.print(time_e - time_s);
   Serial.println(" milliseconds");
 
+  Serial.println("");
+  Serial.println("");
+  Serial.print("*** MB128 Tester, Version ");
+  Serial.print(version_num);
+  Serial.println(" ***");
+  Serial.println("Ready");
+  Serial.println("");
 
   if (cardPresent) {
     dataFile.close();
@@ -1303,6 +1382,200 @@ void restore_button()
     delay(600);
 }
 
+//*************
+// TEST BUTTON
+//*************
+//
+void test_button()
+{
+  char sector;
+  int sector_num;
+  bool test_OK;
+
+   Serial.println("\nTest Button Pressed");
+   digitalWrite(led_GreenOK, LOW);
+   digitalWrite(led_BlueTestOK, LOW);
+
+   test_OK = true;
+    
+   // Check for a file called testtemp.bkp
+   // if found, remove
+   // make file
+
+   if (cardPresent) {
+      if (SD.exists("testtemp.bkp")) {
+         Serial.println("testtemp.bkp exists.");
+         Serial.println("Removing testtemp.bkp...");
+         SD.remove("testtemp.bkp");
+       }
+       if ((debug_on) && (SD.exists("mb128.log"))) {
+         Serial.println("mb128.log exists.");
+         Serial.println("Removing mb128.log...");
+         SD.remove("mb128.log");
+       }
+
+      Serial.println("Saving backup to testtemp.bkp");
+      dataFile = SD.open("testtemp.bkp", FILE_WRITE);
+   }
+
+    if (!dataFile) {
+      Serial.print("Error Opening datafile.");
+      flash_error(led_RedSDErr);
+    }
+    
+    if (debug_on) {
+      Serial.print("Opening logfile: ");
+      Serial.println("mb128.log");
+      logFile = SD.open("mb128.log", FILE_WRITE);
+      
+      if (!logFile) {
+        Serial.print("Error Opening logfile.");
+        flash_error(led_RedSDErr);
+      }
+    }
+
+    //
+    // DO actual work in here:
+    //
+    if (mb128_boot() != true) {
+
+      Serial.println("failed to recognize MB128");
+
+      dataFile.close();
+      if (debug_on) {
+        logFile.close();
+      }
+      flash_error(led_RedMB128Err);
+    }
+
+    if (mb128_read_sectors(0,256) == false) {
+      
+      Serial.println("Error while reading from MB128");
+      
+      dataFile.close();
+      if (debug_on) {
+        logFile.close();
+      }
+      flash_error(led_RedMB128Err);
+    } 
+
+    Serial.println("Read completed");
+    Serial.println("");
+    dataFile.close();
+
+    // then for sector from 0 to 127:
+    //   write AA; read sector; compare value -> if bad, then fail
+    //   write 55; read sector; compare value -> if bad then fail
+
+    for (sector_num = 0; sector_num < 256; sector_num++)
+    {
+      sector = sector_num;
+      Serial.print("Sector #");
+      Serial.print(((sector_num >> 4) & 0x0f), HEX);
+      Serial.print((sector_num & 0x0f), HEX);
+
+      Serial.print(" - AA:write");
+
+      if (!mb128_write_sector(sector, buffer_aa)) {
+        Serial.println(" - sector failed (1)");
+        test_OK = false;
+        break;
+      }
+      Serial.print("|verify");
+      if (!mb128_read_sector(sector, buffer_mem)) {
+        Serial.println(" - sector failed (2)");
+        test_OK = false;
+        break;
+      }
+      
+      if (memcmp(buffer_aa, buffer_mem, 512) != 0) {
+        Serial.println(" - sector failed (3)");
+        test_OK = false;
+        break;
+      }
+      
+      Serial.print(" || 55:write");
+      if (!mb128_write_sector(sector, buffer_55)) {
+        Serial.println(" - sector failed (4)");
+        test_OK = false;
+        break;
+      }
+      Serial.print("|verify");
+      if (!mb128_read_sector(sector, buffer_mem)) {
+        Serial.println(" - sector failed (5)");
+        test_OK = false;
+        break;
+      }
+      
+      if (memcmp(buffer_55, buffer_mem, 512) != 0) {
+        Serial.println("sector failed (6)");
+        test_OK = false;
+        break;
+      }
+      Serial.println(" -- OK");
+    }
+
+    if (test_OK == false) {
+      digitalWrite(led_RedMB128Err, HIGH);
+      flash_error(led_RedMB128Err);
+    }
+
+    Serial.println("");
+    Serial.println("*** Test Successful ***");
+    Serial.println("");
+
+    // Now, restore from testtemp
+    // Light TEST OK if OK
+    Serial.print("Restoring from backup datafile: ");
+    Serial.println("testtemp.bkp");
+    dataFile = SD.open("testtemp.bkp", FILE_READ);
+
+    if (!dataFile) {
+      Serial.print("Error Opening datafile.");
+      flash_error(led_RedSDErr);
+    }
+    
+// Restore original data
+
+    if (mb128_boot() != true) {
+
+      Serial.println("failed to recognize MB128");
+
+      dataFile.close();
+      if (debug_on) {
+        logFile.close();
+      }
+      flash_error(led_RedMB128Err);
+    }
+
+    if (mb128_write_sectors(0,256) == false) {
+      
+      Serial.println("Error while writing to MB128");
+      
+      dataFile.close();
+      if (debug_on) {
+        logFile.close();
+      }
+      flash_error(led_RedMB128Err);
+    } 
+
+    Serial.println("Restore completed");
+
+    // If you got this far, everything should be OK
+    //
+    dataFile.close();
+    if (debug_on) {
+      logFile.close();
+    }
+
+    // if restore() == OK
+    digitalWrite(led_GreenOK, HIGH);
+    digitalWrite(led_BlueTestOK, HIGH);
+    delay(600);
+}
+
+
+
 void loop() {
   int rdval;
 
@@ -1315,16 +1588,7 @@ void loop() {
   }
 
   if (digitalRead(sw_TestPin) == LOW) {
-    Serial.println("\nTest Button Pressed");
-    digitalWrite(led_GreenOK, LOW);
-    digitalWrite(led_BlueTestOK, LOW);
-
-    find_filename();
-
-    // if test() == OK
-    digitalWrite(led_GreenOK, HIGH);
-    digitalWrite(led_BlueTestOK, HIGH);
-    delay(600);
+    test_button();
   }
 
   if (Serial.available()) {
