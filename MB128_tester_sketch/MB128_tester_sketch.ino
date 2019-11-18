@@ -10,7 +10,7 @@
 // hardware.
 //
 
-#define VERSION_NUMBER    20191027
+#define VERSION_NUMBER    20191117
 
 // ------------------------
 // *** HARDWARE defines ***
@@ -750,8 +750,10 @@ bool mb128_write_sector(char sector, char *bufptr)
 bool temp1, temp2;
 int sector_num;
 
-   if (!mb128_detect())
+   if (!mb128_detect()) {
+     Serial.println("Write_sector - failed to detect");
      return(false);
+   }
 
    digitalWrite(led_GreenOK, LOW);
    digitalWrite(led_YellowWrite, HIGH);
@@ -771,19 +773,25 @@ int sector_num;
    mb128_send_bit(false);  // 0
    mb128_send_bit(false);  // 0
 
-   if (!temp1) {
-     logFile.print("Read sector 0x");
-     sector_num = sector;
-     logFile.print(sector_num);
-     logFile.println(", sector write operation, post-sector bit#1 != 1... Fail"); 
-     return(false);
-   }
+// post-write bit #1 indicates device type:
+// 0 = save-kun
+// 1 = memory base 128
+
+//   if (!temp1) {
+//     logFile.print("Write sector 0x");
+//     sector_num = sector;
+//     logFile.print(sector_num);
+//     logFile.println(", sector write operation, post-sector bit#1 != 1... Fail"); 
+//     Serial.println("Write_sector - post-sector bit #1 != 1 - Fail");
+//     return(false);
+//   }
 
    if (temp2) {
-     logFile.print("Read sector 0x");
+     logFile.print("Write sector 0x");
      sector_num = sector;
      logFile.print(sector_num);
      logFile.println(", sector write operation, post-sector bit#2 != 0... Fail"); 
+     Serial.println("Write_sector - post-sector bit #2 != 0 - Fail");
      return(false);
    }
 
@@ -1305,11 +1313,8 @@ void restore_button()
     //
     if (debug_on) {
       if (SD.exists(logname)) {
-        Serial.print("Error - ");
-        Serial.print(logname);
-        Serial.println(" exists.");
-
-        flash_error(led_RedSDErr);
+        Serial.println("Overwriting logfile");
+        SD.remove(logname);
       }
     }
 
