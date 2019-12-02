@@ -10,7 +10,7 @@
 // hardware.
 //
 
-#define VERSION_NUMBER    20191117
+#define VERSION_NUMBER    20191201
 
 // ------------------------
 // *** HARDWARE defines ***
@@ -96,6 +96,7 @@ unsigned long time_e;
 char buffer_aa[513];
 char buffer_55[513];
 char buffer_mem[513];
+char buffer_mem2[513];
 
 char tempfname[16];
 char lastfname[16];
@@ -786,14 +787,17 @@ int sector_num;
 //     return(false);
 //   }
 
-   if (temp2) {
-     logFile.print("Write sector 0x");
-     sector_num = sector;
-     logFile.print(sector_num);
-     logFile.println(", sector write operation, post-sector bit#2 != 0... Fail"); 
-     Serial.println("Write_sector - post-sector bit #2 != 0 - Fail");
-     return(false);
-   }
+// post-write bit #2 was thought to indicate success/failure, but it
+// appears not to be the case, based on MooZ's experience with a Save-kun
+//
+//   if (temp2) {
+//     logFile.print("Write sector 0x");
+//     sector_num = sector;
+//     logFile.print(sector_num);
+//     logFile.println(", sector write operation, post-sector bit#2 != 0... Fail"); 
+//     Serial.println("Write_sector - post-sector bit #2 != 0 - Fail");
+//     return(false);
+//   }
 
    return(true);
 }
@@ -1290,6 +1294,12 @@ void backup_button()
 //
 void restore_button()
 {
+  char sector;
+  int  sector_num;
+  bool test_OK;
+
+    test_OK = true;
+    
     Serial.println("\nRestore Button Pressed");
     digitalWrite(led_GreenOK, LOW);
     digitalWrite(led_BlueTestOK, LOW);
@@ -1362,16 +1372,52 @@ void restore_button()
       flash_error(led_RedMB128Err);
     }
 
-    if (mb128_write_sectors(0,256) == false) {
+    for (sector_num = 0; sector_num < 256; sector_num++)
+    {
+      sector = sector_num;
+
+      dataFile.readBytes(buffer_mem, 512);  // This reads next sector, not absolute sector
+
+      logFile.print("Write sector 0x");
+      logFile.print(((sector_num >> 4)& 0x0f), HEX);
+      logFile.println((sector_num & 0x0f), HEX);
+
+      Serial.print("Sector #");
+      Serial.print(((sector_num >> 4) & 0x0f), HEX);
+      Serial.print((sector_num & 0x0f), HEX);
+
+
+      Serial.print(" - write");
+      if (!mb128_write_sector(sector, buffer_mem)) {
+        Serial.println(" - sector failed (1)");
+        test_OK = false;
+        break;
+      }
+      Serial.print("|verify");
+      if (!mb128_read_sector(sector, buffer_mem2)) {
+        Serial.println(" - sector failed (2)");
+        test_OK = false;
+        break;
+      }
       
+      if (memcmp(buffer_mem, buffer_mem2, 512) != 0) {
+        Serial.println(" - sector failed (3)");
+        test_OK = false;
+        break;
+      }
+      Serial.println("");
+    }
+
+    if (test_OK == false) {
+
       Serial.println("Error while writing to MB128");
-      
+
       dataFile.close();
       if (debug_on) {
         logFile.close();
       }
       flash_error(led_RedMB128Err);
-    } 
+    }
 
     Serial.println("Write completed");
 
