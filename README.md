@@ -28,13 +28,11 @@ To use any of the functionality, ensure that the MB128 is plugged into the port,
 inserted into the SDCard slot of the Microcontroller board.  Finally, then attach the USB cable
 in order to apply power ot the board.
 
-M0 Adalogger board:
--------------------
+- M0 Adalogger board:
 A short self-test will take place, and all of the LEDs will flash briefly.  Once this has completed
 and the Feather's green LED is on, you may press a button.
 
-Wio Terminal:
--------------
+- Wio Terminal:
 A short self-test will take place, with status updates appearing on screen.  Once this has completed,
 the screen will display a choice of operations (associated with the buttons across the top edge).
 
@@ -83,13 +81,16 @@ pseudo-serial port, messages indicating progress or errors will be displayed.
 
 
 
-- Original Board (Adalogger M0)
+Original Board (Adalogger M0)
+-----------------------------
 ![Original Board](images/Orig_board.jpg)
 
-- Wio Terminal (Rev. A, in use)
+Wio Terminal (Rev. A, in use)
+-----------------------------
 ![Wio Terminal](images/Wio Terminal.jpg)
 
-- Daughterboard
+Daughterboard
+-------------
 ![Daughterboard](images/daughterboard.jpg)
 
 
