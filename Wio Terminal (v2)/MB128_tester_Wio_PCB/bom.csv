@@ -1,0 +1,7 @@
+﻿Qty,Designator,Footprint,Comment,LCSC Part # (optional),Description (optional)
+6,"C1, C2, C6, C7, C9, C10",C0603,0.1uF 50V,C14663,Yageo CC0603KRX7R9BB104  100NF 50V 0603
+2,"R16, R18",R0603,330 ohm 1%,C23138,Uniroyal Elec  0603WAF3300T5E 0603
+4,"R21, R22, R23, R24",R0603,47K 1%,C25819,Uniroyal Elec  0603WAF4702T5E 0603
+1,J3,2X20,Do not mount,Do not mount,Multi connection point. Often used as Generic Header-pin footprint for 0.1 inch spaced/style header connections
+1,J2,MD80SGK,Do not mount,Do not mount,"Circular DIN Connectors mini-DIN, 8P jack, rt, through hole, full shield"
+3,"IC1, IC2, IC3",SM-8_2.8x3.0x0.65P,SN74LVC2T45DCTR,C22672,"2-Bit Bus Transceiver, Translation SSOP8 SN74LVC2T45DCTR, Voltage Level Translator, Bus Transceiver LVC, 3-State 1.65"

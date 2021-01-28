@@ -2,18 +2,20 @@
 This project contains both a PC board to control (Backup, Restore, Test) PC Engine
 Memory Base 128 devices, as well as the control software for that PC board.
 
-The PC board is based on an 'Adafruit Feather M0 Adalogger' microcontroller board, which
+The original PC board is based on an 'Adafruit Feather M0 Adalogger' microcontroller board, which
 directly interfaces to PC Engine Memory Base 128 devices.
 
+There is also an updated version which is based on the Seeed Studios Wio Terminal device, which is
+more of a finished all-in-one unit with a screen.
 
-This repository holds the software which runs on that board, as well as the board's design files.
+This repository holds the software which runs on those devices, as well as the boards' design files.
 
 The sketch was built within the Arduino IDE, but I found that the digitalWrite() and digitalRead()
 functions were too slow: ~1uS per call, when I needed 3 to 4 times that speed.
 
 Moreover, they could only manipulate one pin at a time, when I generally needed to write 2, or read 4.
 
-As a result, you will see direct port reads/writes to the Cortex M0 ports... see the comments at the
+As a result, you will see direct port reads/writes to the Cortex M0 (or M4) ports... see the comments at the
 top of the sketch if this is confusing.
 
 (Note: Older versions of this sketch were written for an older version of the board, which didn't have
@@ -26,8 +28,15 @@ To use any of the functionality, ensure that the MB128 is plugged into the port,
 inserted into the SDCard slot of the Microcontroller board.  Finally, then attach the USB cable
 in order to apply power ot the board.
 
+M0 Adalogger board:
+-------------------
 A short self-test will take place, and all of the LEDs will flash briefly.  Once this has completed
 and the Feather's green LED is on, you may press a button.
+
+Wio Terminal:
+-------------
+A short self-test will take place, with status updates appearing on screen.  Once this has completed,
+the screen will display a choice of operations (associated with the buttons across the top edge).
 
 Backup:
 -------
@@ -55,6 +64,7 @@ Error conditions:
 -----------------
 - If the 'SDCard Error' LED lights up at startup, there is a problem with the SDCard
 - If the 'MB128 Error' LED lights up at startup, there is a problem with the MB128
+(On the Wio Terminal version, clear error messages will appear on the screen).
 
 - If either of the above LEDs go into a flashing state, this is an error which happened during
 the process of reading or writing.  Please reset the device and/or turn the power off and back on
