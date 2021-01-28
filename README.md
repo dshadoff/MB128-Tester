@@ -87,7 +87,7 @@ Original Board (Adalogger M0)
 
 Wio Terminal (Rev. A, in use)
 -----------------------------
-![Wio_Terminal](images/Wio Terminal.jpg)
+![Wio_Terminal](images/Wio_Terminal.jpg)
 
 Daughterboard
 -------------
