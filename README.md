@@ -81,3 +81,15 @@ Additional information:
 - If the USB is connected to a PC, and a terminal program is opened (19200 baud) for the
 pseudo-serial port, messages indicating progress or errors will be displayed.
 
+
+
+- Original Board (Adalogger M0)
+![Original Board](images/Orig_board.jpg)
+
+- Wio Terminal (Rev. A, in use)
+![Wio Terminal](images/Wio Terminal.jpg)
+
+- Daughterboard
+![Daughterboard](images/daughterboard.jpg)
+
+
